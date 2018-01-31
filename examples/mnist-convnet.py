@@ -15,6 +15,7 @@ about 0.6% validation error after 30 epochs.
 from tensorpack import *
 from tensorpack.tfutils import summary
 from tensorpack.dataflow import dataset
+from tensorpack.utils.gpu import get_nr_gpu
 
 IMAGE_SIZE = 28
 
@@ -138,4 +139,6 @@ if __name__ == '__main__':
         config.session_init = SaverRestore(args.load)
     # SimpleTrainer is slow, this is just a demo.
     # You can use QueueInputTrainer instead
-    launch_train_with_config(config, SimpleTrainer())
+    launch_train_with_config(config, #SimpleTrainer()
+                                     #SyncMultiGPUTrainerReplicated(max(get_nr_gpu(), 1))
+                                      QueueInputTrainer())
