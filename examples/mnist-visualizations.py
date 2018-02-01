@@ -17,6 +17,24 @@ import tensorflow as tf
 IMAGE_SIZE = 28
 
 
+def visualize_filters(filters):
+    with tf.name_scope('visualizations'):
+        for i,f in enumerate(filters):
+            visualize_conv_weights(f, 'conv'+str(i))
+
+
+def visualize_acts(acts):
+    with tf.name_scope('visualizations'):
+        for i,f in enumerate(acts):
+            visualize_conv_activations(f, 'acts'+str(i))
+
+
+def visualize_input(image):
+    with tf.name_scope('visualizations'):
+        tf.summary.image('input', (image + 1.0) * 128., 3)
+
+
+
 def visualize_conv_weights(filters, name):
     """Visualize use weights in convolution filters.
 
@@ -75,6 +93,7 @@ class Model(ModelDesc):
     def _build_graph(self, inputs):
 
         image, label = inputs
+        self.image = image.name
         image = tf.expand_dims(image * 2 - 1, 3)
 
         with argscope(Conv2D, kernel_shape=3, nl=tf.nn.relu, out_channel=32):
@@ -88,17 +107,8 @@ class Model(ModelDesc):
             fc1 = Dropout('dropout', fc1, 0.5)
             logits = FullyConnected('fc1', fc1, out_dim=10, nl=tf.identity)
 
-        with tf.name_scope('visualizations'):
-            visualize_conv_weights(c0.variables.W, 'conv0')
-            visualize_conv_activations(c0, 'conv0')
-            visualize_conv_weights(c1.variables.W, 'conv1')
-            visualize_conv_activations(c1, 'conv1')
-            visualize_conv_weights(c2.variables.W, 'conv2')
-            visualize_conv_activations(c2, 'conv2')
-            visualize_conv_weights(c3.variables.W, 'conv3')
-            visualize_conv_activations(c3, 'conv3')
-
-            tf.summary.image('input', (image + 1.0) * 128., 3)
+        self.filters = [var.name for var in [c0.variables.W, c1.variables.W, c2.variables.W, c3.variables.W]]
+        #self.acts = [var.name for var in [c0, c1, c2, c3]]
 
         cost = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=label)
         cost = tf.reduce_mean(cost, name='cross_entropy_loss')
@@ -112,6 +122,7 @@ class Model(ModelDesc):
         summary.add_moving_summary(cost, wd_cost, self.cost, accuracy)
 
         summary.add_param_summary(('.*/W', ['histogram', 'rms']))
+
 
     def _get_optimizer(self):
         lr = tf.train.exponential_decay(
@@ -133,11 +144,15 @@ def get_config():
 
     logger.auto_set_dir()
     dataset_train, dataset_test = get_data()
+    filters = ['conv0/W:0', 'conv1/W:0', 'conv2/W:0', 'conv3/W:0']
 
     return TrainConfig(
         model=Model(),
         dataflow=dataset_train,
         callbacks=[
+            PeriodicRunHooks(ProcessTensors([filters], visualize_filters), every_k_steps=dataset_train.size()),
+            #PeriodicRunHooks(ProcessTensors(acts, visualize_acts), every_k_steps=steps_per_epoch),
+            #PeriodicRunHooks(ProcessTensors(image, visualize_input), every_k_steps=steps_per_epoch),
             ModelSaver(),
             InferenceRunner(
                 dataset_test, ScalarStats(['cross_entropy_loss', 'accuracy'])),
