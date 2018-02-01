@@ -112,7 +112,7 @@ def get_config():
         model=Model(),
         dataflow=dataset_train,  # the DataFlow instance for training
         callbacks=[
-            PeriodicRunHooks(TensorPrinterEpoch, every_k_steps=steps_per_epoch),
+            PeriodicRunHooks(TensorPrinter(["conv0/W:0"]), every_k_steps=steps_per_epoch),
             ModelSaver(),   # save the model after every epoch
             MaxSaver('validation_accuracy'),  # save the model with highest accuracy (prefix 'validation_')
             InferenceRunner(    # run inference(for validation) after every epoch
