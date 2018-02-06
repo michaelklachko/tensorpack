@@ -17,79 +17,87 @@ import tensorflow as tf
 
 IMAGE_SIZE = 28
 
-
-def visualize_filters(filters):
-    with tf.name_scope('visualizations'):
-        for i,f in enumerate(filters):
-            visualize_conv_weights(f, 'conv'+str(i))
-
-
-def visualize_acts(acts):
-    with tf.name_scope('visualizations'):
-        for i,f in enumerate(acts):
-            visualize_conv_activations(f, 'acts'+str(i))
-
-
-def visualize_input(image):
-    with tf.name_scope('visualizations'):
-        tf.summary.image('input', (image + 1.0) * 128., 3)
-
-
-
-def visualize_conv_weights(filters, name):
-    """Visualize use weights in convolution filters.
-
-    Args:
-        filters: tensor containing the weights [H,W,Cin,Cout]
-        name: label for tensorboard
-
-    Returns:
-        image of all weight
+class VisualizeTensors(Callback):
     """
-    with tf.name_scope('visualize_w_' + name):
-        filters = tf.transpose(filters, (3, 2, 0, 1))   # [h, w, cin, cout] -> [cout, cin, h, w]
-        filters = tf.unstack(filters)                   # --> cout * [cin, h, w]
-        filters = tf.concat(filters, 1)                 # --> [cin, cout * h, w]
-        filters = tf.unstack(filters)                   # --> cin * [cout * h, w]
-        filters = tf.concat(filters, 1)                 # --> [cout * h, cin * w]
-        filters = tf.expand_dims(filters, 0)
-        filters = tf.expand_dims(filters, -1, name='filters')
-
-        #print filters.name, '\n\n\n\n'
-        #print get_op_tensor_name(filters.name), '\n\n\n\n'
-        #print tf.get_default_graph().get_tensor_by_name("visualizations/visualize_w_conv0/filters:0"), '\n\n\n\n'
-
-        #a = get_op_or_tensor_by_name('visualizations/visualize_w_conv0/filters:0')
-
-    #tf.summary.image('visualize_w_' + name, a)
-
-
-def visualize_conv_activations(activation, name):
-    """Visualize activations for convolution layers.
-
-    Remarks:
-        This tries to place all activations into a square.
-
-    Args:
-        activation: tensor with the activation [B,H,W,C]
-        name: label for tensorboard
-
-    Returns:
-        image of almost all activations
+    Prepare and export tensors (filters, activations,
+    and input images) to TensorBoard for visualization
     """
-    import math
-    with tf.name_scope('visualize_act_' + name):
-        _, h, w, c = activation.get_shape().as_list()
-        rows = []
-        c_per_row = int(math.sqrt(c))
-        for y in range(0, c - c_per_row, c_per_row):
-            row = activation[:, :, :, y:y + c_per_row]  # [?, H, W, 32] --> [?, H, W, 5]
-            cols = tf.unstack(row, axis=3)              # [?, H, W, 5] --> 5 * [?, H, W]
-            row = tf.concat(cols, 1)
-            rows.append(row)
 
-        viz = tf.concat(rows, 2)
-    tf.summary.image('visualize_act_' + name, tf.expand_dims(viz, -1))
+    def __init__(self, filters, acts):
+        """
+        Args:
+            filters: list of strings, the names of the conv. layer filters to visualize.
+            acts: list of strings, the names of the conv. layer activations to visualize.
+        """
+        filters = [get_op_tensor_name(n)[1] for n in filters]
+        acts = [get_op_tensor_name(n)[1] for n in acts]
+        self.image = get_op_tensor_name('input_image')[1]
+        self.filter_names = filters
+        self.act_names = acts
+
+    def _setup_graph(self):
+        filters = self.get_tensors_maybe_in_tower(self.filter_names)
+        acts = self.get_tensors_maybe_in_tower(self.act_names)
+        image = self.get_tensors_maybe_in_tower([self.image])
+
+        with tf.name_scope('visualizations'):
+            tf.summary.image('input', (image[0] + 1.0) * 128., 3)
+            for i, (f, a) in enumerate(zip(filters, acts)):
+                self.visualize_conv_weights(f, 'conv' + str(i))
+                self.visualize_conv_activations(a, 'acts' + str(i))
+
+    def visualize_conv_weights(self, filters, name):
+        """Visualize weights in convolution filters.
+
+        Args:
+            filters: tensor containing the weights [H,W,Cin,Cout]
+            name: label for tensorboard
+
+        Returns:
+            image of all weight
+        """
+        with tf.name_scope('visualize_w_' + name):
+            filters = tf.transpose(filters, (3, 2, 0, 1))  # [h, w, cin, cout] -> [cout, cin, h, w]
+            filters = tf.unstack(filters)  # --> cout * [cin, h, w]
+            filters = tf.concat(filters, 1)  # --> [cin, cout * h, w]
+            filters = tf.unstack(filters)  # --> cin * [cout * h, w]
+            filters = tf.concat(filters, 1)  # --> [cout * h, cin * w]
+            filters = tf.expand_dims(filters, 0)
+            filters = tf.expand_dims(filters, -1)
+
+        tf.summary.image(name, filters)
+
+
+    def visualize_conv_activations(self, activation, name):
+        """Visualize activations for convolution layers.
+
+        Remarks:
+            This tries to place all activations into a square.
+
+        Args:
+            activation: tensor with the activation [B,H,W,C]
+            name: label for tensorboard
+
+        Returns:
+            image of almost all activations
+        """
+        import math
+        with tf.name_scope('visualize_act_' + name):
+            _, h, w, c = activation.get_shape().as_list()
+            rows = []
+            c_per_row = int(math.sqrt(c))
+            for y in range(0, c - c_per_row, c_per_row):
+                row = activation[:, :, :, y:y + c_per_row]  # [?, H, W, 32] --> [?, H, W, 5]
+                cols = tf.unstack(row, axis=3)  # [?, H, W, 5] --> 5 * [?, H, W]
+                row = tf.concat(cols, 1)
+                rows.append(row)
+
+            viz = tf.concat(rows, 2)
+        tf.summary.image(name, tf.expand_dims(viz, -1))
+
+
+    def _trigger(self):
+        pass
 
 
 class Model(ModelDesc):
@@ -100,8 +108,7 @@ class Model(ModelDesc):
     def _build_graph(self, inputs):
 
         image, label = inputs
-        self.image = image.name
-        image = tf.expand_dims(image * 2 - 1, 3)
+        image = tf.expand_dims(image * 2 - 1, 3, name='input_image')
 
         with argscope(Conv2D, kernel_shape=3, nl=tf.nn.relu, out_channel=32):
             c0 = Conv2D('conv0', image)
@@ -113,12 +120,6 @@ class Model(ModelDesc):
             fc1 = FullyConnected('fc0', c3, 512, nl=tf.nn.relu)
             fc1 = Dropout('dropout', fc1, 0.5)
             logits = FullyConnected('fc1', fc1, out_dim=10, nl=tf.identity)
-
-        with tf.name_scope('visualizations'):
-            visualize_conv_weights(c0.variables.W, 'conv0')
-
-        #self.filters = [var.name for var in [c0.variables.W, c1.variables.W, c2.variables.W, c3.variables.W]]
-        #self.acts = [var.name for var in [c0, c1, c2, c3]]
 
         cost = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=label)
         cost = tf.reduce_mean(cost, name='cross_entropy_loss')
@@ -155,14 +156,13 @@ def get_config():
     logger.auto_set_dir()
     dataset_train, dataset_test = get_data()
     filters = ['conv0/W:0', 'conv1/W:0', 'conv2/W:0', 'conv3/W:0']
+    acts = ['conv0/output:0', 'conv1/output:0', 'conv2/output:0', 'conv3/output:0']
 
     return TrainConfig(
         model=Model(),
         dataflow=dataset_train,
         callbacks=[
-            PeriodicTrigger(RunOp(tf.summary.image('visualize_w_' + 'conv0', get_op_or_tensor_by_name(
-                'visualizations/visualize_w_conv0/filters:0')))),
-            #PeriodicRunHooks(ProcessTensors([filters], visualize_filters), every_k_steps=dataset_train.size()),
+            VisualizeTensors(filters, acts),
             ModelSaver(),
             InferenceRunner(
                 dataset_test, ScalarStats(['cross_entropy_loss', 'accuracy'])),
