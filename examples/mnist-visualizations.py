@@ -115,9 +115,7 @@ class Model(ModelDesc):
             logits = FullyConnected('fc1', fc1, out_dim=10, nl=tf.identity)
 
         with tf.name_scope('visualizations'):
-            filters = visualize_conv_weights(c0.variables.W, 'conv0')
-            print filters.name
-            print
+            visualize_conv_weights(c0.variables.W, 'conv0')
 
         #self.filters = [var.name for var in [c0.variables.W, c1.variables.W, c2.variables.W, c3.variables.W]]
         #self.acts = [var.name for var in [c0, c1, c2, c3]]
