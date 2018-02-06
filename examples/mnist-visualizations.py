@@ -12,6 +12,7 @@ MNIST ConvNet example with weights/activations visualization.
 
 from tensorpack import *
 from tensorpack.dataflow import dataset
+from tensorpack.tfutils.common import get_op_or_tensor_by_name, get_op_tensor_name
 import tensorflow as tf
 
 IMAGE_SIZE = 28
@@ -52,9 +53,15 @@ def visualize_conv_weights(filters, name):
         filters = tf.unstack(filters)                   # --> cin * [cout * h, w]
         filters = tf.concat(filters, 1)                 # --> [cout * h, cin * w]
         filters = tf.expand_dims(filters, 0)
-        filters = tf.expand_dims(filters, -1)
+        filters = tf.expand_dims(filters, -1, name='filters')
 
-    tf.summary.image('visualize_w_' + name, filters)
+        #print filters.name, '\n\n\n\n'
+        #print get_op_tensor_name(filters.name), '\n\n\n\n'
+        #print tf.get_default_graph().get_tensor_by_name("visualizations/visualize_w_conv0/filters:0"), '\n\n\n\n'
+
+        #a = get_op_or_tensor_by_name('visualizations/visualize_w_conv0/filters:0')
+
+    #tf.summary.image('visualize_w_' + name, a)
 
 
 def visualize_conv_activations(activation, name):
@@ -107,7 +114,12 @@ class Model(ModelDesc):
             fc1 = Dropout('dropout', fc1, 0.5)
             logits = FullyConnected('fc1', fc1, out_dim=10, nl=tf.identity)
 
-        self.filters = [var.name for var in [c0.variables.W, c1.variables.W, c2.variables.W, c3.variables.W]]
+        with tf.name_scope('visualizations'):
+            filters = visualize_conv_weights(c0.variables.W, 'conv0')
+            print filters.name
+            print
+
+        #self.filters = [var.name for var in [c0.variables.W, c1.variables.W, c2.variables.W, c3.variables.W]]
         #self.acts = [var.name for var in [c0, c1, c2, c3]]
 
         cost = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=label)
@@ -150,9 +162,9 @@ def get_config():
         model=Model(),
         dataflow=dataset_train,
         callbacks=[
-            PeriodicRunHooks(ProcessTensors([filters], visualize_filters), every_k_steps=dataset_train.size()),
-            #PeriodicRunHooks(ProcessTensors(acts, visualize_acts), every_k_steps=steps_per_epoch),
-            #PeriodicRunHooks(ProcessTensors(image, visualize_input), every_k_steps=steps_per_epoch),
+            PeriodicTrigger(RunOp(tf.summary.image('visualize_w_' + 'conv0', get_op_or_tensor_by_name(
+                'visualizations/visualize_w_conv0/filters:0')))),
+            #PeriodicRunHooks(ProcessTensors([filters], visualize_filters), every_k_steps=dataset_train.size()),
             ModelSaver(),
             InferenceRunner(
                 dataset_test, ScalarStats(['cross_entropy_loss', 'accuracy'])),
