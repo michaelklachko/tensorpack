@@ -98,7 +98,7 @@ class Model(ModelDesc):
 
 def get_data():
     train = BatchData(dataset.Mnist('train'), 128)
-    test = BatchData(dataset.Mnist('test'), 128, remainder=False)
+    test = BatchData(dataset.Mnist('test'), 256, remainder=True)
     return train, test
 
 

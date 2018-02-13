@@ -121,27 +121,40 @@ def Conv2D(
 
 
     if pool3d:  # assuming channels_last data format
-
+        print "\nTransforming conv layer output feature maps by applying 3D pooling"
+        print "Taking {:d} feature maps {}".format(filters, ret.shape)
         def build_mask(fs, dim, batch_size, debug=False):
-            # print '\n\n\n\n', batch_size, '\n\n\n\n'
             import numpy as np
+
             mask = np.zeros((dim, dim, fs * fs))
             for i in range(fs):
                 for j in range(fs):
                     mask[i::fs, j::fs, fs * i + j] = 1
-            groups_mask = np.tile(mask, (1, 1, num_groups))
-            batch_mask = np.tile(groups_mask, (batch_size, 1, 1, 1))
+
+            #groups_mask = np.tile(mask, (1, 1, num_groups))
+            #batch_mask = np.tile(groups_mask, (batch_size, 1, 1, 1))
+
+            mask_T = tf.constant(mask, dtype=tf.float32)
+            print "Mask shape: {}".format(mask_T.get_shape())
+            groups_mask = tf.tile(mask_T, tf.stack([1, 1, num_groups]))
+            #print "groups_mask shape: {}".format(groups_mask.get_shape())
+            groups_mask_expanded = tf.expand_dims(groups_mask, axis=0)
+            #print "groups_mask_expanded shape: {}".format(groups_mask_expanded.get_shape())
+            batch_mask = tf.tile(groups_mask_expanded, tf.stack([batch_size, 1, 1, 1]))
+            print "batch_mask shape: {}".format(batch_mask.get_shape())
+
             return batch_mask
 
         in_shape = inputs.get_shape().as_list()
         kernel_shape = shape2d(kernel_size)
         fs = kernel_shape[0]
         dim = in_shape[1]
-        batch_size = 128  # in_shape[0]
+        batch_size = tf.shape(ret)[0]   #evaluates to None during graph construction
         mask = build_mask(fs, dim, batch_size)
         conv_masked = mask * ret
         conv_grouped = tf.reshape(conv_masked, (batch_size, dim, dim, num_groups, fs * fs))
         ret = tf.reduce_sum(conv_grouped, axis=-1)
+        print "Outputting {} feature maps {}\n".format(ret.shape[3], ret.shape)
 
     return ret
 
