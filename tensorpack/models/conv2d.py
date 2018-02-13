@@ -16,7 +16,8 @@ def Conv2D(x, out_channel, kernel_shape,
            padding='SAME', stride=1,
            W_init=None, b_init=None,
            activation=tf.identity, split=1, use_bias=True,
-           data_format='channels_last', dilation_rate=1):
+           data_format='channels_last', dilation_rate=1,
+           num_groups=1, pool3d=False):
     """
     2D convolution on 4D inputs.
 
@@ -79,6 +80,28 @@ def Conv2D(x, out_channel, kernel_shape,
         conv = tf.concat(outputs, channel_axis)
 
     ret = activation(tf.nn.bias_add(conv, b, data_format=data_format) if use_bias else conv, name='output')
+
+    if pool3d:   #assuming channels_last data format
+
+        def build_mask(fs, dim, batch_size, debug=False):
+            #print '\n\n\n\n', batch_size, '\n\n\n\n'
+            import numpy as np
+            mask = np.zeros((dim, dim, fs * fs))
+            for i in range(fs):
+                for j in range(fs):
+                    mask[i::fs, j::fs, fs * i + j] = 1
+            groups_mask = np.tile(mask, (1, 1, num_groups))
+            batch_mask = np.tile(groups_mask, (batch_size, 1, 1, 1))
+            return batch_mask
+
+        fs = kernel_shape[0]
+        dim = in_shape[1]
+        batch_size = 128#in_shape[0]
+        mask = build_mask(fs, dim, batch_size)
+        conv_masked = mask * ret
+        conv_grouped = tf.reshape(conv_masked, (batch_size, dim, dim, num_groups, fs * fs))
+        ret = tf.reduce_sum(conv_grouped, axis=-1)
+
     ret.variables = VariableHolder(W=W)
     if use_bias:
         ret.variables.b = b

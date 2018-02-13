@@ -44,7 +44,8 @@ class Model(ModelDesc):
 
         # The context manager `argscope` sets the default option for all the layers under
         # this context. Here we use 32 channel convolution with shape 3x3
-        with argscope(Conv2D, kernel_shape=3, nl=tf.nn.relu, out_channel=32):
+        with argscope(Conv2D, kernel_shape=3, nl=tf.nn.relu, out_channel=32*9,
+                      num_groups=32, pool3d=True):
             logits = (LinearWrap(image)
                       .Conv2D('conv0')
                       .MaxPooling('pool0', 2)
@@ -97,7 +98,7 @@ class Model(ModelDesc):
 
 def get_data():
     train = BatchData(dataset.Mnist('train'), 128)
-    test = BatchData(dataset.Mnist('test'), 256, remainder=True)
+    test = BatchData(dataset.Mnist('test'), 128, remainder=False)
     return train, test
 
 
@@ -112,7 +113,7 @@ def get_config():
         model=Model(),
         dataflow=dataset_train,  # the DataFlow instance for training
         callbacks=[
-            PeriodicRunHooks(TensorPrinter(["conv0/W:0"]), every_k_steps=steps_per_epoch),
+            #PeriodicRunHooks(TensorPrinter(["conv0/W:0"]), every_k_steps=steps_per_epoch),
             ModelSaver(),   # save the model after every epoch
             MaxSaver('validation_accuracy'),  # save the model with highest accuracy (prefix 'validation_')
             InferenceRunner(    # run inference(for validation) after every epoch
