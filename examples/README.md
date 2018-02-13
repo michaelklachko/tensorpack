@@ -3,17 +3,19 @@
 
 Training examples with __reproducible performance__.
 
+__The word "reproduce" should always means reproduce performance__.
 Reproducing a method is usually easy, but you don't know whether you've made mistakes, because wrong code will often appear to work.
-Reproducible performance results are what really matters.
+Reproducing __performance__ results is what really matters, and is something that's hardly seen on github.
 See [Unawareness of Deep Learning Mistakes](https://medium.com/@ppwwyyxx/unawareness-of-deep-learning-mistakes-d5b5774da0ba).
 
 
 ## Getting Started:
-+ [An illustrative mnist example with explanation of the framework](mnist-convnet.py)
-+ The same mnist example using [tf-slim](mnist-tfslim.py), and [with weights visualizations](mnist-visualizations.py)
-+ A tiny [Cifar ConvNet](cifar-convnet.py) and [SVHN ConvNet](svhn-digit-convnet.py)
+These examples don't have meaningful performance numbers. They are supposed to be just demos.
++ [An illustrative MNIST example with explanation of the framework](basics/mnist-convnet.py)
++ A tiny [Cifar ConvNet](basics/cifar-convnet.py) and [SVHN ConvNet](basics/svhn-digit-convnet.py)
++ Tensorpack supports any symbolic libraries. See the same MNIST example written with [tf.layers](basics/mnist-tflayers.py), [tf-slim](basics/mnist-tfslim.py), and [with weights visualizations](basics/mnist-visualizations.py)
++ If you've used Keras, check out [Keras examples](keras)
 + [A boilerplate file to start with, for your own tasks](boilerplate.py)
-+ If you've used Keras, check out [Keras examples](keras).
 
 ## Vision:
 | Name | Performance |

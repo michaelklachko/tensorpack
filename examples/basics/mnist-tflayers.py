@@ -1,21 +1,23 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# File: mnist-convnet.py
+# File: mnist-tflayers.py
 
 import os
 import argparse
 import tensorflow as tf
 """
-MNIST ConvNet example.
-about 0.6% validation error after 30 epochs.
+MNIST ConvNet example using tf.layers
+Mostly the same as 'mnist-convnet.py',
+the only differences are:
+    1. use tf.layers
+    2. use tf.layers variable names to summarize weights
 """
 
 
 # Just import everything into current namespace
 from tensorpack import *
-from tensorpack.tfutils import summary
+from tensorpack.tfutils import summary, get_current_tower_context
 from tensorpack.dataflow import dataset
-from tensorpack.utils.gpu import get_nr_gpu
 
 IMAGE_SIZE = 28
 
@@ -44,18 +46,18 @@ class Model(ModelDesc):
 
         # The context manager `argscope` sets the default option for all the layers under
         # this context. Here we use 32 channel convolution with shape 3x3
-        with argscope(Conv2D, kernel_shape=3, nl=tf.nn.relu, out_channel=32*9,
-                      num_groups=32, pool3d=True):
-            logits = (LinearWrap(image)
-                      .Conv2D('conv0')
-                      .MaxPooling('pool0', 2)
-                      .Conv2D('conv1')
-                      .Conv2D('conv2')
-                      .MaxPooling('pool1', 2)
-                      .Conv2D('conv3')
-                      .FullyConnected('fc0', 512, nl=tf.nn.relu)
-                      .Dropout('dropout', 0.5)
-                      .FullyConnected('fc1', out_dim=10, nl=tf.identity)())
+        with argscope(Conv2D, kernel_shape=3, nl=tf.nn.relu, out_channel=32):
+            l = tf.layers.conv2d(image, 32, 3, padding='same', activation=tf.nn.relu, name='conv0')
+            l = tf.layers.max_pooling2d(l, 2, 2, padding='valid')
+            l = tf.layers.conv2d(l, 32, 3, padding='same', activation=tf.nn.relu, name='conv1')
+            l = tf.layers.conv2d(l, 32, 3, padding='same', activation=tf.nn.relu, name='conv2')
+            l = tf.layers.max_pooling2d(l, 2, 2, padding='valid')
+            l = tf.layers.conv2d(l, 32, 3, padding='same', activation=tf.nn.relu, name='conv3')
+            l = tf.layers.flatten(l)
+            l = tf.layers.dense(l, 512, activation=tf.nn.relu, name='fc0')
+            l = tf.layers.dropout(l, rate=0.5,
+                                  training=get_current_tower_context().is_training)
+            logits = tf.layers.dense(l, 10, activation=tf.identity, name='fc1')
 
         tf.nn.softmax(logits, name='prob')   # a Bx10 with probabilities
 
@@ -76,13 +78,13 @@ class Model(ModelDesc):
         # Use a regex to find parameters to apply weight decay.
         # Here we apply a weight decay on all W (weight matrix) of all fc layers
         wd_cost = tf.multiply(1e-5,
-                              regularize_cost('fc.*/W', tf.nn.l2_loss),
+                              regularize_cost('fc.*/kernel', tf.nn.l2_loss),
                               name='regularize_loss')
         self.cost = tf.add_n([wd_cost, cost], name='total_cost')
         summary.add_moving_summary(cost, wd_cost, self.cost)
 
         # monitor histogram of all weight (of conv and fc layers) in tensorboard
-        summary.add_param_summary(('.*/W', ['histogram', 'rms']))
+        summary.add_param_summary(('.*/kernel', ['histogram', 'rms']))
 
     def _get_optimizer(self):
         lr = tf.train.exponential_decay(
@@ -98,7 +100,7 @@ class Model(ModelDesc):
 
 def get_data():
     train = BatchData(dataset.Mnist('train'), 128)
-    test = BatchData(dataset.Mnist('test'), 128, remainder=False)
+    test = BatchData(dataset.Mnist('test'), 256, remainder=True)
     return train, test
 
 
@@ -113,7 +115,6 @@ def get_config():
         model=Model(),
         dataflow=dataset_train,  # the DataFlow instance for training
         callbacks=[
-            #PeriodicRunHooks(TensorPrinter(["conv0/W:0"]), every_k_steps=steps_per_epoch),
             ModelSaver(),   # save the model after every epoch
             MaxSaver('validation_accuracy'),  # save the model with highest accuracy (prefix 'validation_')
             InferenceRunner(    # run inference(for validation) after every epoch
@@ -141,6 +142,4 @@ if __name__ == '__main__':
         config.session_init = SaverRestore(args.load)
     # SimpleTrainer is slow, this is just a demo.
     # You can use QueueInputTrainer instead
-    launch_train_with_config(config, #SimpleTrainer()
-                                     #SyncMultiGPUTrainerReplicated(max(get_nr_gpu(), 1))
-                                      QueueInputTrainer())
+    launch_train_with_config(config, SimpleTrainer())

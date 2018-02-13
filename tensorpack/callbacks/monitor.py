@@ -196,15 +196,33 @@ class TFEventWriter(TrainingMonitor):
     """
     Write summaries to TensorFlow event file.
     """
-    def __new__(cls):
-        if logger.get_logger_dir():
+    def __init__(self, logdir=None, max_queue=10, flush_secs=120):
+        """
+        Args:
+            Same as in :class:`tf.summary.FileWriter`.
+            logdir will be ``logger.get_logger_dir()`` by default.
+        """
+        if logdir is None:
+            logdir = logger.get_logger_dir()
+        assert os.path.isdir(logdir), logdir
+        self._logdir = logdir
+        self._max_queue = max_queue
+        self._flush_secs = flush_secs
+
+    def __new__(cls, logdir=None, max_queue=10, flush_secs=120):
+        if logdir is None:
+            logdir = logger.get_logger_dir()
+
+        if logdir is not None:
             return super(TFEventWriter, cls).__new__(cls)
         else:
             logger.warn("logger directory was not set. Ignore TFEventWriter.")
             return NoOpMonitor()
 
     def _setup_graph(self):
-        self._writer = tf.summary.FileWriter(logger.get_logger_dir(), graph=tf.get_default_graph())
+        self._writer = tf.summary.FileWriter(
+            self._logdir, graph=tf.get_default_graph(),
+            max_queue=self._max_queue, flush_secs=self._flush_secs)
 
     def process_summary(self, summary):
         self._writer.add_summary(summary, self.global_step)
@@ -318,7 +336,7 @@ class ScalarPrinter(TrainingMonitor):
         def compile_regex(rs):
             if rs is None:
                 return None
-            rs = set([r if isinstance(r, re.RegexObject) else re.compile(r) for r in rs])
+            rs = set([re.compile(r) for r in rs])
             return rs
 
         self._whitelist = compile_regex(whitelist)
