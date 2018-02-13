@@ -44,8 +44,7 @@ class Model(ModelDesc):
 
         # The context manager `argscope` sets the default option for all the layers under
         # this context. Here we use 32 channel convolution with shape 3x3
-        with argscope(Conv2D, kernel_shape=3, nl=tf.nn.relu, out_channel=32*9,
-                      num_groups=32, pool3d=True):
+        with argscope(Conv2D, kernel_shape=3, nl=tf.nn.relu, out_channel=32, pool3d=True):
             logits = (LinearWrap(image)
                       .Conv2D('conv0')
                       .MaxPooling('pool0', 2)

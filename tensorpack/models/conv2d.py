@@ -37,7 +37,6 @@ def Conv2D(
         bias_regularizer=None,
         activity_regularizer=None,
         split=1,
-        num_groups=1,
         pool3d=False):
 
     """
@@ -53,6 +52,13 @@ def Conv2D(
     * ``W``: weights
     * ``b``: bias
     """
+
+    if pool3d:
+        num_groups = filters
+        fs = shape2d(kernel_size)[0]
+        filters = filters * fs*fs
+
+
     if split == 1:
         with rename_get_variable({'kernel': 'W', 'bias': 'b'}):
             layer = tf.layers.Conv2D(
@@ -145,10 +151,7 @@ def Conv2D(
 
             return batch_mask
 
-        in_shape = inputs.get_shape().as_list()
-        kernel_shape = shape2d(kernel_size)
-        fs = kernel_shape[0]
-        dim = in_shape[1]
+        dim = ret.shape[1]
         batch_size = tf.shape(ret)[0]   #evaluates to None during graph construction
         mask = build_mask(fs, dim, batch_size)
         conv_masked = mask * ret
