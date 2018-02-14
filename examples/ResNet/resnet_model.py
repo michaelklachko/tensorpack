@@ -114,15 +114,16 @@ def resnet_group(l, name, block_func, features, count, stride):
 
 
 def resnet_backbone(image, num_blocks, group_func, block_func):
+    scale = 0.5
     with argscope(Conv2D, nl=tf.identity, use_bias=False,
                   W_init=tf.variance_scaling_initializer(scale=2.0, mode='fan_out'), pool3d=True):
         logits = (LinearWrap(image)
-                  .Conv2D('conv0', 64, 7, stride=2, nl=BNReLU)
+                  .Conv2D('conv0', 48, 7, stride=2, nl=BNReLU)
                   .MaxPooling('pool0', shape=3, stride=2, padding='SAME')
-                  .apply(group_func, 'group0', block_func, 64, num_blocks[0], 1)
-                  .apply(group_func, 'group1', block_func, 128, num_blocks[1], 2)
-                  .apply(group_func, 'group2', block_func, 256, num_blocks[2], 2)
-                  .apply(group_func, 'group3', block_func, 512, num_blocks[3], 2)
+                  .apply(group_func, 'group0', block_func, 48, num_blocks[0], 1)
+                  .apply(group_func, 'group1', block_func, int(128*scale), num_blocks[1], 2)
+                  .apply(group_func, 'group2', block_func, int(256*scale), num_blocks[2], 2)
+                  .apply(group_func, 'group3', block_func, int(512*scale), num_blocks[3], 2)
                   .GlobalAvgPooling('gap')
                   .FullyConnected('linear', 1000, nl=tf.identity)())
     return logits
