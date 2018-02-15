@@ -57,6 +57,10 @@ def Conv2D(
         num_groups = filters
         fs = shape2d(kernel_size)[0]
         filters = filters * fs*fs
+        if data_format == 'channels_first':
+            channels_first = True
+        else:
+            channels_first = False
 
 
     if split == 1:
@@ -126,7 +130,7 @@ def Conv2D(
             ret.variables.b = b
 
 
-    if pool3d:  # assuming channels_first data format
+    if pool3d and channels_first:  # assuming channels_first data format
         print "\nTransforming conv layer output feature maps by applying 3D pooling"
         print "Taking {:d} feature maps {}".format(filters, ret.shape)
         def build_mask(fs, dim, batch_size, debug=False):
@@ -160,7 +164,7 @@ def Conv2D(
         print "Outputting {} feature maps {}\n".format(ret.shape[1], ret.shape)
 
 
-    if False:  #pool3d: assuming channels_last data format
+    elif pool3d:  #pool3d: assuming channels_last data format
         print "\nTransforming conv layer output feature maps by applying 3D pooling"
         print "Taking {:d} feature maps {}".format(filters, ret.shape)
         def build_mask(fs, dim, batch_size):
