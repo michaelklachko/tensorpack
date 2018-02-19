@@ -41,7 +41,6 @@ class Model(ModelDesc):
         image = tf.expand_dims(image, 3)
 
         image = image * 2 - 1   # center the pixels values at zero
-
         # The context manager `argscope` sets the default option for all the layers under
         # this context. Here we use 32 channel convolution with shape 3x3
         with argscope(Conv2D, kernel_shape=3, nl=tf.nn.relu, out_channel=32,
@@ -54,7 +53,7 @@ class Model(ModelDesc):
                       .MaxPooling('pool1', 2)
                       .Conv2D('conv3')
                       .FullyConnected('fc0', 512, activation=tf.nn.relu)
-                      .Dropout('dropout', 0.5)
+                      .Dropout('dropout', rate=0.5)
                       .FullyConnected('fc1', 10, activation=tf.identity)())
 
         tf.nn.softmax(logits, name='prob')   # a Bx10 with probabilities
@@ -99,6 +98,9 @@ class Model(ModelDesc):
 def get_data():
     train = BatchData(dataset.Mnist('train'), 128)
     test = BatchData(dataset.Mnist('test'), 256, remainder=True)
+
+    train = PrintData(train)
+
     return train, test
 
 
