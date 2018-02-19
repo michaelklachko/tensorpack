@@ -4,6 +4,30 @@
 
 import tensorflow as tf
 
+#gradient checkpointing to save memory (expect slowdown):
+import memory_saving_gradients
+#tf.__dict__["gradients"] = memory_saving_gradients.gradients_memory
+from tensorflow.python.ops import gradients
+# monkey patch tf.gradients to point to our custom version, with automatic checkpoint selection
+def gradients_memory(ys, xs, grad_ys=None, **kwargs):
+
+    tensors = ['tower0/conv0/Relu:0', 'tower0/group0/block0/conv1/Relu:0', 'tower0/group0/block0/conv2/bn/FusedBatchNorm:0',
+     'tower0/group0/block1/conv1/Relu:0', 'tower0/group0/block1/conv2/bn/FusedBatchNorm:0',
+     'tower0/group1/block0/conv1/Relu:0', 'tower0/group1/block0/conv2/bn/FusedBatchNorm:0',
+     'tower0/group1/block0/convshortcut/bn/FusedBatchNorm:0', 'tower0/group1/block1/conv1/Relu:0',
+     'tower0/group1/block1/conv2/bn/FusedBatchNorm:0', 'tower0/group2/block0/conv1/Relu:0',
+     'tower0/group2/block0/conv2/bn/FusedBatchNorm:0', 'tower0/group2/block0/convshortcut/bn/FusedBatchNorm:0',
+     'tower0/group2/block1/conv1/Relu:0', 'tower0/group2/block1/conv2/bn/FusedBatchNorm:0',
+     'tower0/group3/block0/conv1/Relu:0', 'tower0/group3/block0/conv2/bn/FusedBatchNorm:0',
+     'tower0/group3/block0/convshortcut/bn/FusedBatchNorm:0', 'tower0/group3/block1/conv1/Relu:0',
+     'tower0/group3/block1/conv2/bn/FusedBatchNorm:0']
+
+    tensors = ['tower0/conv0/Relu:0', 'tower0/group0/block0/conv1/Relu:0']
+
+    return memory_saving_gradients.gradients(ys, xs, grad_ys, checkpoints=tensors, **kwargs)
+#gradients.__dict__["gradients"] = memory_saving_gradients.gradients_memory
+gradients.__dict__["gradients"] = gradients_memory
+
 
 from tensorpack.tfutils.argscope import argscope, get_arg_scope
 from tensorpack.models import (
@@ -114,10 +138,10 @@ def resnet_group(l, name, block_func, features, count, stride):
 
 
 def resnet_backbone(image, num_blocks, group_func, block_func):
-    scale1 = 1
-    scale2 = 0.5
+    scale1 = 2#0.75
+    scale2 = 2#0.5
     with argscope(Conv2D, nl=tf.identity, use_bias=False,
-                  W_init=tf.variance_scaling_initializer(scale=2.0, mode='fan_out'), pool3d=True):
+                  W_init=tf.variance_scaling_initializer(scale=2.0, mode='fan_out'), pool3d=False):
         logits = (LinearWrap(image)
                   .Conv2D('conv0', int(64*scale1), 7, stride=2, nl=BNReLU)
                   .MaxPooling('pool0', shape=3, stride=2, padding='SAME')
@@ -127,4 +151,11 @@ def resnet_backbone(image, num_blocks, group_func, block_func):
                   .apply(group_func, 'group3', block_func, int(512*scale2), num_blocks[3], 2)
                   .GlobalAvgPooling('gap')
                   .FullyConnected('linear', 1000, nl=tf.identity)())
+
+    print '\n\n\n\n'
+    print tf.get_collection('checkpoints')
+    for var in tf.get_collection('checkpoints'):
+        print var
+    print '\n\n\n\n'
+
     return logits

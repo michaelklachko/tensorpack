@@ -126,6 +126,7 @@ if __name__ == '__main__':
         os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
     model = Model(args.depth, args.data_format, args.mode)
+
     if args.eval:
         batch = 128    # something that can run on one gpu
         ds = get_data('val', batch)

@@ -45,7 +45,7 @@ class Model(ModelDesc):
             data_format = 'NHWC'
 
         image = image / 4.0     # just to make range smaller
-        with argscope(Conv2D, nl=BNReLU, use_bias=False, kernel_shape=3), \
+        with argscope(Conv2D, nl=BNReLU, use_bias=False, kernel_shape=3, pool3d=False), \
                 argscope([Conv2D, MaxPooling, BatchNorm], data_format=data_format):
             logits = LinearWrap(image) \
                 .Conv2D('conv1.1', out_channel=64) \
