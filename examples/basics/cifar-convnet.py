@@ -45,17 +45,23 @@ class Model(ModelDesc):
             data_format = 'NHWC'
 
         image = image / 4.0     # just to make range smaller
-        with argscope(Conv2D, nl=BNReLU, use_bias=False, kernel_shape=3, pool3d=False), \
+        scale = 1
+        with argscope(Conv2D, nl=BNReLU, use_bias=False, kernel_shape=3, pool3d=True), \
                 argscope([Conv2D, MaxPooling, BatchNorm], data_format=data_format):
             logits = LinearWrap(image) \
-                .Conv2D('conv1.1', out_channel=64) \
-                .Conv2D('conv1.2', out_channel=64) \
+                .Conv2D('conv1.1', out_channel=int(64*scale), split=3) \
+                .Conv2D('conv1.3', out_channel=int(64 * scale), kernel_shape=1, pool3d=False) \
+                .Conv2D('conv1.2', out_channel=int(64*scale), split=64) \
+                .Conv2D('conv1.4', out_channel=int(64 * scale), kernel_shape=1, pool3d=False) \
                 .MaxPooling('pool1', 3, stride=2, padding='SAME') \
-                .Conv2D('conv2.1', out_channel=128) \
-                .Conv2D('conv2.2', out_channel=128) \
+                .Conv2D('conv2.1', out_channel=int(128*scale), split=64) \
+                .Conv2D('conv2.3', out_channel=int(128 * scale), kernel_shape=1, pool3d=False) \
+                .Conv2D('conv2.2', out_channel=int(128*scale), split=128) \
+                .Conv2D('conv2.4', out_channel=int(128 * scale), kernel_shape=1, pool3d=False) \
                 .MaxPooling('pool2', 3, stride=2, padding='SAME') \
-                .Conv2D('conv3.1', out_channel=128, padding='VALID') \
-                .Conv2D('conv3.2', out_channel=128, padding='VALID') \
+                .Conv2D('conv3.1', out_channel=int(128*scale), padding='VALID', split=128) \
+                .Conv2D('conv3.3', out_channel=int(128 * scale), kernel_shape=1, pool3d=False) \
+                .Conv2D('conv3.2', out_channel=int(128*scale), padding='VALID', split=128) \
                 .FullyConnected('fc0', 1024 + 512, nl=tf.nn.relu) \
                 .tf.nn.dropout(keep_prob) \
                 .FullyConnected('fc1', 512, nl=tf.nn.relu) \
@@ -75,10 +81,25 @@ class Model(ModelDesc):
         add_param_summary(('.*/W', ['histogram']))   # monitor W
         self.cost = tf.add_n([cost, wd_cost], name='cost')
 
+
     def _get_optimizer(self):
         lr = tf.get_variable('learning_rate', initializer=1e-2, trainable=False)
         tf.summary.scalar('lr', lr)
-        return tf.train.AdamOptimizer(lr, epsilon=1e-3)
+
+        opt = tf.train.AdamOptimizer(lr, epsilon=1e-3)
+
+        # print gradients
+        grads_and_vars = opt.compute_gradients(self.cost, tf.trainable_variables())
+        gradients, variables = zip(*grads_and_vars)  # unzip list of tuples
+        print "==================================\n\n"
+        for g in gradients:
+            print g
+        print
+        for v in variables:
+            print v
+        print "==================================\n\n"
+
+        return opt
 
 
 def get_data(train_or_test, cifar_classnum):
@@ -101,9 +122,12 @@ def get_data(train_or_test, cifar_classnum):
             imgaug.MeanVarianceNormalize(all_channel=True)
         ]
     ds = AugmentImageComponent(ds, augmentors)
-    ds = BatchData(ds, 128, remainder=not isTrain)
+    #ds = BatchData(ds, 128, remainder=not isTrain)
     if isTrain:
+        ds = BatchData(ds, 128, remainder=False)
         ds = PrefetchDataZMQ(ds, 5)
+    else:
+        ds = BatchData(ds, 512, remainder=True)
     return ds
 
 
@@ -120,7 +144,7 @@ def get_config(cifar_classnum):
         model=Model(cifar_classnum),
         dataflow=dataset_train,
         callbacks=[
-            ModelSaver(),
+            #ModelSaver(),
             InferenceRunner(dataset_test,
                             ScalarStats(['accuracy', 'cost'])),
             StatMonitorParamSetter('learning_rate', 'validation_accuracy', lr_func,

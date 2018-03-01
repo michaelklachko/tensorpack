@@ -6,8 +6,10 @@ import tensorflow as tf
 
 #gradient checkpointing to save memory (expect slowdown):
 import memory_saving_gradients
+
 #tf.__dict__["gradients"] = memory_saving_gradients.gradients_memory
 from tensorflow.python.ops import gradients
+
 # monkey patch tf.gradients to point to our custom version, with automatic checkpoint selection
 def gradients_memory(ys, xs, grad_ys=None, **kwargs):
 
@@ -25,6 +27,7 @@ def gradients_memory(ys, xs, grad_ys=None, **kwargs):
     tensors = ['tower0/conv0/Relu:0', 'tower0/group0/block0/conv1/Relu:0']
 
     return memory_saving_gradients.gradients(ys, xs, grad_ys, checkpoints=tensors, **kwargs)
+
 #gradients.__dict__["gradients"] = memory_saving_gradients.gradients_memory
 gradients.__dict__["gradients"] = gradients_memory
 

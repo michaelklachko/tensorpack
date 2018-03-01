@@ -190,6 +190,84 @@ def Conv2D(
             ret = tf.reduce_sum(ret, axis=-1)
             print("Outputting {} feature maps {}\n".format(ret.shape[3], ret.shape))
 
+
+
+
+    if False:#pool3d:
+        print("\nTransforming conv layer output feature maps by applying 3D pooling")
+        print("Taking {:d} feature maps {}".format(filters, ret.shape))
+        import numpy as np
+
+        if channels_first:  # channels first format
+            """
+            we have 9 groups of 64 feature maps. From each group we extract 
+            64 values at strided locations, with different offset pr group.
+            1. reshape input: (bs, nmaps*fs*fs, dim, dim) --> (bs, nmaps, fs*fs, dim, dim)
+            2. in each fs*fs group, we extract 
+            
+            
+            we have 3 feature maps. We want to get 64 feature maps. 
+            We scan each fm with 64 diff filters  (3x64 filters)
+            We scan each fm with 64 diff filters, at 9 diff offsets. (3x64x9 filters)
+            We scan each fm with 64 diff filters, at same offsets. (3x64x9 filters)
+            
+            The last version is grouped convolution with each input fm as a group
+            """
+
+
+
+            def build_mask(fs, dim, batch_size, debug=False):
+                mask = np.zeros((fs * fs, dim, dim))
+                for i in range(fs):
+                    for j in range(fs):
+                        mask[fs * i + j, i::fs, j::fs] = 1
+
+                mask = tf.constant(mask, dtype=tf.float32)
+                print("Mask shape: {}".format(mask.get_shape()))
+                mask = tf.tile(mask, tf.stack([num_groups, 1, 1]))
+                # print("groups_mask shape: {}".format(mask.get_shape()))
+                mask = tf.expand_dims(mask, axis=0)
+                # print("groups_mask_expanded shape: {}".format(mask.get_shape()))
+                mask = tf.tile(mask, tf.stack([batch_size, 1, 1, 1]))
+                print("batch_mask shape: {}".format(mask.get_shape()))
+
+                return mask
+
+            dim = ret.shape[-1]
+            batch_size = tf.shape(ret)[0]   # evaluates to None during graph construction
+            mask = build_mask(fs, dim, batch_size)
+            ret = mask * ret
+            ret = tf.reshape(ret, (batch_size, num_groups, fs*fs, dim, dim))
+            ret = tf.reduce_sum(ret, axis=2)
+            print("Outputting {} feature maps {}\n".format(ret.shape[1], ret.shape))
+
+        else:  # channels last format
+            def build_mask(fs, dim, batch_size):
+                mask = np.zeros((dim, dim, fs * fs))
+                for i in range(fs):
+                    for j in range(fs):
+                        mask[i::fs, j::fs, fs * i + j] = 1
+
+                mask_T = tf.constant(mask, dtype=tf.float32)
+                print("Mask shape: {}".format(mask_T.get_shape()))
+                groups_mask = tf.tile(mask_T, tf.stack([1, 1, num_groups]))
+                # print("groups_mask shape: {}".format(groups_mask.get_shape()))
+                groups_mask_expanded = tf.expand_dims(groups_mask, axis=0)
+                # print("groups_mask_expanded shape: {}".format(groups_mask_expanded.get_shape()))
+                batch_mask = tf.tile(groups_mask_expanded, tf.stack([batch_size, 1, 1, 1]))
+                print("batch_mask shape: {}".format(batch_mask.get_shape()))
+
+                return batch_mask
+
+            dim = ret.shape[1]
+            batch_size = tf.shape(ret)[0]   # evaluates to None during graph construction
+            mask = build_mask(fs, dim, batch_size)
+            ret = mask * ret
+            ret = tf.reshape(ret, (batch_size, dim, dim, num_groups, fs * fs))
+            ret = tf.reduce_sum(ret, axis=-1)
+            print("Outputting {} feature maps {}\n".format(ret.shape[3], ret.shape))
+
+
     return ret
 
 
